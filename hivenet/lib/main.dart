@@ -10,20 +10,93 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'hive_core.dart';
 import 'platform_node.dart';
+import 'ui/hivenet_ui.dart';
 
 const _port = 8765;
+final themeMode = ValueNotifier(ThemeMode.light);
 void main() => runApp(const App());
 
 class App extends StatelessWidget {
   const App({super.key});
   @override
-  Widget build(BuildContext c) => MaterialApp(
-    title: 'HiveNet',
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: Colors.amber),
-      useMaterial3: true,
+  Widget build(BuildContext c) => ValueListenableBuilder<ThemeMode>(
+    valueListenable: themeMode,
+    builder: (_, mode, _) => MaterialApp(
+      title: 'HiveNet',
+      debugShowCheckedModeBanner: false,
+      themeMode: mode,
+      theme: _theme(Brightness.light),
+      darkTheme: _theme(Brightness.dark),
+      home: const Dashboard(),
     ),
-    home: const Dashboard(),
+  );
+}
+
+/*
+  int tab = 0;
+  int get onlineCount => peers.where((p) => p.online).length;
+  int get pooledFree => peers.where((p) => p.online).fold(0, (n, p) => n + p.free);
+
+  Widget _page(BuildContext context, String title, List<Widget> children) =>
+      ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 110), children: [
+        Text(title, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: 16),
+        ...children,
+      ]);
+
+  Widget _summary(BuildContext context) => HnCard(child: Wrap(spacing: 20, runSpacing: 16, children: [
+    _stat(context, Icons.storage_outlined, size(pooledFree), 'Pooled free'),
+    _stat(context, Icons.devices_outlined, '$onlineCount / ${peers.length}', 'Peers online'),
+    _stat(context, Icons.photo_library_outlined, '${gallery.length}', 'Distributed images'),
+  ]));
+  Widget _stat(BuildContext context, IconData icon, String value, String label) => SizedBox(width: 130, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 10), Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)), Text(label, style: Theme.of(context).textTheme.labelMedium)]));
+
+  Widget _storagePage(BuildContext c) => _page(c, 'Storage', [_summary(c), const SectionTitle('Node capacity'), ...peers.map((p) => Padding(padding: const EdgeInsets.only(bottom: 10), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.dns_outlined, color: p.online ? Colors.teal : Theme.of(c).colorScheme.error), title: Text(p.id ?? p.host), subtitle: Text(p.online ? '${size(p.free)} available • ${p.host}:$_port' : '${p.host}:$_port unavailable'), trailing: StatusPill(online: p.online, label: p.online ? 'Live' : 'Offline'))))]);
+  Widget _peersPage(BuildContext c) => _page(c, 'Peers', [Text('Live network telemetry • tap a connected peer to browse its files.', style: Theme.of(c).textTheme.bodyMedium), const SizedBox(height: 12), ...peers.map((p) => Padding(padding: const EdgeInsets.only(bottom: 10), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, onTap: p.online ? () => browsePeer(p) : null, leading: Icon(p.online ? Icons.lan_outlined : Icons.portable_wifi_off_outlined), title: Text(p.id ?? p.host), subtitle: Text('${p.host}:$_port\n${p.online ? '${p.latencyMs ?? '?'} ms • ${(p.reliability * 100).toStringAsFixed(0)}% reliability • ${size(p.free)} free' : 'Offline'}'), isThreeLine: true, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { setState(() => peers.remove(p)); await savePeers(); }))))) ]);
+  Widget _galleryPage(BuildContext c) => _page(c, 'Gallery', [Text('${gallery.length} images discovered across responsive peers.'), const SizedBox(height: 12), ...gallery.map((g) => Padding(padding: const EdgeInsets.only(bottom: 10), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, onTap: () => showDistributedImage(g), leading: Container(width: 50, height: 50, decoration: BoxDecoration(color: Theme.of(c).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.image_outlined)), title: Text(g.meta.name), subtitle: Text('${size(g.meta.originalBytes)} → ${size(g.meta.bytes)} • ${g.meta.id.substring(0, 12)}…\n${g.locations.length} replica location(s): ${g.locations.map((p) => p.id ?? p.host).join(', ')}'), isThreeLine: true))))]);
+  Widget _routerPage(BuildContext c) { final selected = selectReplicaPeers(peers, (p) => PeerCandidate(key: p.key, freeBytes: p.free, latencyMs: p.latencyMs, online: p.online, successes: p.successes, failures: p.failures), 0); return _page(c, 'Smart Router', [HnCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Icon(Icons.account_tree_outlined), const SizedBox(width: 10), const Text('Two independent replicas', style: TextStyle(fontWeight: FontWeight.w800)), const Spacer(), StatusPill(online: selected.length == 2, label: selected.length == 2 ? 'Ready' : 'Needs peers')]), const SizedBox(height: 12), const Text('Scores use actual free space, probe latency, availability, and verified-transfer reliability.'), ...selected.asMap().entries.map((e) => ListTile(contentPadding: EdgeInsets.zero, leading: CircleAvatar(child: Text('${e.key + 1}')), title: Text(e.value.id ?? e.value.host), subtitle: Text('${size(e.value.free)} free • ${e.value.latencyMs ?? '?'} ms • ${(e.value.reliability * 100).toStringAsFixed(0)}% reliable')))])), const SectionTitle('Eligible peer telemetry'), ...peers.map((p) => Padding(padding: const EdgeInsets.only(bottom: 8), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, leading: StatusPill(online: p.online, label: p.online ? 'Eligible' : 'Offline'), title: Text(p.id ?? p.host), trailing: Text(p.online ? '${p.latencyMs ?? '?'} ms' : '—'))))]); }
+  Widget _activityPage(BuildContext c) => _page(c, 'Activity', [HnCard(child: const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.verified_outlined), title: Text('Integrity verification'), subtitle: Text('All downloads are SHA-256 verified before preview.'))), const SizedBox(height: 10), HnCard(child: ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.sync_outlined), title: const Text('Network diagnostics'), subtitle: Text(status), trailing: IconButton(icon: const Icon(Icons.refresh), onPressed: refresh)))]);
+  Widget _settingsPage(BuildContext c) => _page(c, 'Settings', [HnCard(child: SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Dark theme'), subtitle: const Text('Premium low-light Material 3 palette'), value: themeMode.value == ThemeMode.dark, onChanged: (v) => themeMode.value = v ? ThemeMode.dark : ThemeMode.light)), const SizedBox(height: 10), HnCard(child: const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.repeat_rounded), title: Text('Replication factor'), subtitle: Text('Two verified, distinct Android storage peers are required.'), trailing: Text('2'))), const SizedBox(height: 10), HnCard(child: ListTile(contentPadding: EdgeInsets.zero, leading: const Icon(Icons.memory_outlined), title: const Text('This device'), subtitle: Text('${PlatformNode.receiverDescription}\n$nodeId'), isThreeLine: true))]);
+
+  @override
+  Widget build(BuildContext context) {
+    final pages = [_legacyHome(context), _storagePage(context), _peersPage(context), _galleryPage(context), _routerPage(context), _activityPage(context), _settingsPage(context)];
+    const labels = ['Home', 'Storage', 'Peers', 'Gallery', 'Router', 'Activity', 'Settings'];
+    const icons = [Icons.home_outlined, Icons.storage_outlined, Icons.devices_outlined, Icons.photo_library_outlined, Icons.account_tree_outlined, Icons.bolt_outlined, Icons.settings_outlined];
+    return LayoutBuilder(builder: (context, box) { final rail = box.maxWidth >= 760; return Scaffold(appBar: AppBar(title: const Text('HiveNet', style: TextStyle(fontWeight: FontWeight.w800)), actions: [if (busy) const Padding(padding: EdgeInsets.all(16), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))) else IconButton(onPressed: refresh, icon: const Icon(Icons.refresh))]), floatingActionButton: tab == 0 || tab == 3 ? FloatingActionButton.extended(onPressed: busy ? null : upload, icon: const Icon(Icons.upload_outlined), label: const Text('Upload')) : null, bottomNavigationBar: rail ? null : NavigationBar(selectedIndex: tab, onDestinationSelected: (i) => setState(() => tab = i), destinations: List.generate(7, (i) => NavigationDestination(icon: Icon(icons[i]), label: labels[i]))), body: Row(children: [if (rail) NavigationRail(selectedIndex: tab, onDestinationSelected: (i) => setState(() => tab = i), extended: box.maxWidth > 1050, destinations: List.generate(7, (i) => NavigationRailDestination(icon: Icon(icons[i]), label: Text(labels[i])))), if (rail) const VerticalDivider(width: 1), Expanded(child: AnimatedSwitcher(duration: const Duration(milliseconds: 220), child: KeyedSubtree(key: ValueKey(tab), child: pages[tab]))) ])); });
+  }
+}
+*/
+
+ThemeData _theme(Brightness brightness) {
+  final scheme = ColorScheme.fromSeed(
+    seedColor: const Color(0xff5b4bdb),
+    brightness: brightness,
+    surface: brightness == Brightness.light
+        ? const Color(0xfffffbf7)
+        : const Color(0xff17151d),
+  );
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: brightness == Brightness.light
+        ? const Color(0xfff6f3f0)
+        : const Color(0xff100f14),
+    cardTheme: CardThemeData(
+      color: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      indicatorColor: scheme.primaryContainer,
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: scheme.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+    ),
   );
 }
 
@@ -73,6 +146,15 @@ class GalleryImage {
   final List<Peer> locations = [];
 }
 
+class ActivityEvent {
+  ActivityEvent(this.title, this.detail, this.icon, {this.error = false})
+    : time = DateTime.now();
+  final String title, detail;
+  final IconData icon;
+  final DateTime time;
+  final bool error;
+}
+
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
   @override
@@ -86,9 +168,16 @@ class _DashboardState extends State<Dashboard> {
   var images = <Meta>[];
   var gallery = <GalleryImage>[];
   String? lastCompression;
+  final activity = <ActivityEvent>[];
+  int tab = 0;
   var nodeId = '';
   var busy = true;
   var status = 'Starting node...';
+  void log(String title, String detail, IconData icon, {bool error = false}) {
+    activity.insert(0, ActivityEvent(title, detail, icon, error: error));
+    if (activity.length > 30) activity.removeLast();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -190,6 +279,11 @@ class _DashboardState extends State<Dashboard> {
       } catch (_) {}
     }
     await _refreshGallery(own);
+    log(
+      'Network scan complete',
+      '${peers.where((p) => p.online).length} peers online',
+      Icons.radar,
+    );
     if (mounted) {
       setState(() {
         busy = false;
@@ -259,6 +353,7 @@ class _DashboardState extends State<Dashboard> {
         .trim();
     if (host != null && host.isNotEmpty && !peers.any((p) => p.host == host)) {
       setState(() => peers.add(Peer(host)));
+      log('Peer added', '$host:$_port', Icons.add_link);
       await savePeers();
       await refresh();
     }
@@ -342,6 +437,12 @@ class _DashboardState extends State<Dashboard> {
       }
       await savePeers();
       if (replicas.length != 2) {
+        log(
+          'Replication failed',
+          'Two verified replicas were not available.',
+          Icons.error_outline,
+          error: true,
+        );
         throw Exception('Could not verify two independent replica writes.');
       }
       if (kIsWeb) {
@@ -356,6 +457,11 @@ class _DashboardState extends State<Dashboard> {
         });
       }
       if (mounted) {
+        log(
+          'Image replicated',
+          '${replicas.map((p) => p.id ?? p.host).join(' and ')} verified $id',
+          Icons.verified,
+        );
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Replicated and verified on both storage nodes.'),
@@ -363,6 +469,7 @@ class _DashboardState extends State<Dashboard> {
         );
       }
     } catch (e) {
+      log('Upload failed', '$e', Icons.error_outline, error: true);
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Upload failed: $e')));
@@ -493,8 +600,7 @@ class _DashboardState extends State<Dashboard> {
   String size(int n) => n > 1048576
       ? '${(n / 1048576).toStringAsFixed(1)} MB'
       : '${(n / 1024).toStringAsFixed(0)} KB';
-  @override
-  Widget build(BuildContext c) => Scaffold(
+  Widget _home(BuildContext c) => Scaffold(
     appBar: AppBar(
       title: const Text('HiveNet'),
       actions: [
@@ -515,7 +621,7 @@ class _DashboardState extends State<Dashboard> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Card(
+          HnCard(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -539,7 +645,7 @@ class _DashboardState extends State<Dashboard> {
             style: Theme.of(c).textTheme.titleLarge,
           ),
           ...peers.map(
-            (p) => Card(
+            (p) => HnCard(
               child: ListTile(
                 leading: Icon(
                   p.online ? Icons.check_circle : Icons.cloud_off,
@@ -566,7 +672,7 @@ class _DashboardState extends State<Dashboard> {
             style: Theme.of(c).textTheme.titleLarge,
           ),
           ...gallery.map(
-            (entry) => Card(
+            (entry) => HnCard(
               child: ListTile(
                 leading: const Icon(Icons.hub),
                 title: Text(entry.meta.name),
@@ -592,7 +698,7 @@ class _DashboardState extends State<Dashboard> {
             style: Theme.of(c).textTheme.titleLarge,
           ),
           ...images.map(
-            (m) => Card(
+            (m) => HnCard(
               child: ListTile(
                 leading: const Icon(Icons.image),
                 title: Text(m.name),
@@ -614,4 +720,183 @@ class _DashboardState extends State<Dashboard> {
       ),
     ),
   );
+
+  int _tab = 0;
+  Widget _simplePage(BuildContext c, String title, List<Widget> content) =>
+      ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Text(
+            title,
+            style: Theme.of(c).textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 16),
+          ...content,
+        ],
+      );
+  Widget _storage(BuildContext c) => _simplePage(c, 'Storage', [
+    HnCard(
+      child: Text(
+        '${size(peers.where((p) => p.online).fold(0, (n, p) => n + p.free))} pooled live capacity',
+        style: Theme.of(c).textTheme.titleLarge,
+      ),
+    ),
+    const SizedBox(height: 16),
+    ...peers.map(
+      (p) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: HnCard(
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              Icons.storage_outlined,
+              color: p.online ? Colors.teal : Theme.of(c).colorScheme.error,
+            ),
+            title: Text(p.id ?? p.host),
+            subtitle: Text(p.online ? '${size(p.free)} available' : 'Offline'),
+            trailing: StatusPill(
+              online: p.online,
+              label: p.online ? 'Live' : 'Offline',
+            ),
+          ),
+        ),
+      ),
+    ),
+  ]);
+  Widget _peers(BuildContext c) => _simplePage(c, 'Peers', [
+    ...peers.map(
+      (p) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: HnCard(
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            onTap: p.online ? () => browsePeer(p) : null,
+            leading: const Icon(Icons.devices_outlined),
+            title: Text(p.id ?? p.host),
+            subtitle: Text(
+              '${p.host}:$_port • ${p.online ? '${p.latencyMs ?? '?'} ms • ${(p.reliability * 100).toStringAsFixed(0)}% reliable' : 'Offline'}',
+            ),
+          ),
+        ),
+      ),
+    ),
+  ]);
+  Widget _gallery(BuildContext c) => _simplePage(c, 'Gallery', [
+    ...gallery.map(
+      (g) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: HnCard(
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            onTap: () => showDistributedImage(g),
+            leading: const Icon(Icons.image_outlined),
+            title: Text(g.meta.name),
+            subtitle: Text(
+              '${size(g.meta.bytes)} • ${g.meta.id.substring(0, 12)}… • ${g.locations.length} replica locations',
+            ),
+          ),
+        ),
+      ),
+    ),
+  ]);
+  Widget _router(BuildContext c) => _simplePage(c, 'Smart Router', [
+    HnCard(
+      child: const Text(
+        'The router requires two distinct online Android peers and ranks them using live free capacity, measured latency, and verified transfer reliability.',
+      ),
+    ),
+    const SizedBox(height: 16),
+    ...peers.map(
+      (p) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: HnCard(
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: StatusPill(
+              online: p.online,
+              label: p.online ? 'Eligible' : 'Offline',
+            ),
+            title: Text(p.id ?? p.host),
+            subtitle: Text(
+              '${size(p.free)} free • ${p.latencyMs ?? '?'} ms • ${(p.reliability * 100).toStringAsFixed(0)}% reliability',
+            ),
+          ),
+        ),
+      ),
+    ),
+  ]);
+  Widget _settings(BuildContext c) => _simplePage(c, 'Settings', [
+    HnCard(
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Dark theme'),
+        subtitle: const Text('Use HiveNet’s Material 3 dark palette.'),
+        value: themeMode.value == ThemeMode.dark,
+        onChanged: (v) =>
+            themeMode.value = v ? ThemeMode.dark : ThemeMode.light,
+      ),
+    ),
+    const SizedBox(height: 10),
+    HnCard(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.network_check_outlined),
+        title: const Text('Run diagnostics'),
+        subtitle: Text(status),
+        onTap: refresh,
+      ),
+    ),
+    const SizedBox(height: 10),
+    const HnCard(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.repeat_rounded),
+        title: Text('Replication factor'),
+        subtitle: Text('Two independent verified replicas'),
+        trailing: Text('2'),
+      ),
+    ),
+  ]);
+  @override
+  Widget build(BuildContext c) {
+    final pages = [
+      _home(c),
+      _storage(c),
+      _peers(c),
+      _gallery(c),
+      _router(c),
+      _settings(c),
+    ];
+    const labels = [
+      'Home',
+      'Storage',
+      'Peers',
+      'Gallery',
+      'Router',
+      'Settings',
+    ];
+    const icons = [
+      Icons.home_outlined,
+      Icons.storage_outlined,
+      Icons.devices_outlined,
+      Icons.photo_library_outlined,
+      Icons.account_tree_outlined,
+      Icons.settings_outlined,
+    ];
+    return Scaffold(
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        child: KeyedSubtree(key: ValueKey(_tab), child: pages[_tab]),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (i) => setState(() => _tab = i),
+        destinations: List.generate(
+          6,
+          (i) => NavigationDestination(icon: Icon(icons[i]), label: labels[i]),
+        ),
+      ),
+    );
+  }
 }
