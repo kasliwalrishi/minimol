@@ -927,19 +927,7 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
                         ),
                       )
                     else
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                              childAspectRatio: 1.1,
-                            ),
-                        itemCount: gallery.length,
-                        itemBuilder: (c, i) => _galleryTile(c, gallery[i]),
-                      ),
+                      ...gallery.map((entry) => _encryptedImageBar(c, entry)),
 
                     // ── Local gallery ──
                     NeonSectionTitle(
@@ -1088,50 +1076,74 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
     );
   }
 
-  /// Gallery grid tile with shimmer placeholder
-  Widget _galleryTile(BuildContext c, GalleryImage entry) {
-    return GestureDetector(
-      onTap: () => showDistributedImage(entry),
-      child: GlassCard(
-        glowColor: kPink,
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [kPurple, kPink, kCyan],
-                      stops: [0.0, 0.5, 1.0],
-                    ),
-                  ),
-                  child: const Center(
-                    child: Icon(
-                      Icons.image_outlined,
-                      color: Colors.white54,
-                      size: 32,
-                    ),
-                  ),
+  /// Encrypted objects have no safe preview. Present their verifiable metadata
+  /// as a compact file row instead of implying a readable image thumbnail.
+  Widget _encryptedImageBar(BuildContext c, GalleryImage entry) {
+    final dark = Theme.of(c).brightness == Brightness.dark;
+    final canOpen = ownerRecords.containsKey(entry.meta.id);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GestureDetector(
+        onTap: () => showDistributedImage(entry),
+        child: GlassCard(
+          glowColor: kCyan,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: kCyan.withOpacity(dark ? 0.14 : 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: kCyan.withOpacity(0.28)),
+                ),
+                child: Icon(
+                  canOpen ? Icons.lock_open_rounded : Icons.lock_rounded,
+                  color: kCyan,
+                  size: 21,
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              entry.meta.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
-            ),
-            Text(
-              '${entry.locations.length} replica(s)',
-              style: const TextStyle(fontSize: 10, color: kCyan),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.meta.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${size(entry.meta.bytes)}  ·  ${entry.locations.length} verified replica${entry.locations.length == 1 ? '' : 's'}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: dark ? Colors.white60 : Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      canOpen
+                          ? 'AES-256-GCM · owned by this device'
+                          : 'Encrypted object · access restricted',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: kCyan,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                canOpen ? Icons.chevron_right_rounded : Icons.shield_outlined,
+                color: dark ? Colors.white54 : Colors.black45,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1420,7 +1432,10 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       children: [
         const SizedBox(height: 16),
         NeonSectionTitle('Gallery', color: kPink),
-        Text('${gallery.length} images discovered across responsive peers.'),
+        Text(
+          '${gallery.length} encrypted objects across responsive peers. '
+          'Previews stay private; only verified metadata is shown here.',
+        ),
         const SizedBox(height: 12),
         if (gallery.isEmpty)
           GlassCard(
@@ -1439,7 +1454,8 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
             ),
           )
         else
-          GridView.builder(
+          ...gallery.map((entry) => _encryptedImageBar(c, entry)),
+        /* Legacy thumbnail grid, deliberately not used for encrypted files.
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -1497,6 +1513,7 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
               );
             },
           ),
+          */
       ],
     );
   }
@@ -1816,8 +1833,6 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       Icons.account_tree_rounded,
       Icons.settings_rounded,
     ];
-    final navColors = [kPurple, kCyan, kGreen, kPink, kAmber, kCyan];
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
@@ -1865,29 +1880,31 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(28),
               child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: Container(
                   decoration: BoxDecoration(
                     color: dark
-                        ? Colors.white.withOpacity(0.09)
-                        : Colors.white.withOpacity(0.65),
+                        ? const Color(0xff132129).withOpacity(0.97)
+                        : Colors.white.withOpacity(0.94),
                     borderRadius: BorderRadius.circular(28),
                     border: Border.all(
-                      color: Colors.white.withOpacity(dark ? 0.15 : 0.55),
-                      width: 1.2,
+                      color: dark
+                          ? kCyan.withOpacity(0.30)
+                          : const Color(0xff203B43).withOpacity(0.18),
+                      width: 1.4,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: navColors[_tab].withOpacity(0.22),
-                        blurRadius: 28,
-                        spreadRadius: -4,
+                        color: Colors.black.withOpacity(dark ? 0.36 : 0.12),
+                        blurRadius: 22,
+                        offset: const Offset(0, 10),
                       ),
                     ],
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
-                      vertical: 8,
+                      vertical: 9,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -1905,14 +1922,21 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(18),
                               color: selected
-                                  ? navColors[i].withOpacity(0.22)
+                                  ? kCyan.withOpacity(dark ? 0.24 : 0.14)
                                   : Colors.transparent,
+                              border: selected
+                                  ? Border.all(
+                                      color: kCyan.withOpacity(
+                                        dark ? 0.52 : 0.34,
+                                      ),
+                                    )
+                                  : null,
                               boxShadow: selected
                                   ? [
                                       BoxShadow(
-                                        color: navColors[i].withOpacity(0.4),
-                                        blurRadius: 14,
-                                        spreadRadius: -2,
+                                        color: kCyan.withOpacity(0.18),
+                                        blurRadius: 12,
+                                        spreadRadius: -4,
                                       ),
                                     ]
                                   : [],
@@ -1923,25 +1947,25 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
                                 Icon(
                                   selected ? selectedIcons[i] : icons[i],
                                   color: selected
-                                      ? navColors[i]
+                                      ? kCyan
                                       : (dark
-                                            ? Colors.white38
-                                            : Colors.black38),
-                                  size: 22,
+                                            ? Colors.white70
+                                            : Colors.black54),
+                                  size: 24,
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
                                   labels[i],
                                   style: TextStyle(
-                                    fontSize: 9,
+                                    fontSize: 10,
                                     fontWeight: selected
                                         ? FontWeight.w700
                                         : FontWeight.w500,
                                     color: selected
-                                        ? navColors[i]
+                                        ? kCyan
                                         : (dark
-                                              ? Colors.white38
-                                              : Colors.black38),
+                                              ? Colors.white70
+                                              : Colors.black54),
                                   ),
                                 ),
                               ],
