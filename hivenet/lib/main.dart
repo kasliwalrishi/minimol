@@ -1,5 +1,7 @@
+// ignore_for_file: deprecated_member_use
 import 'dart:convert';
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -14,7 +16,7 @@ import 'secure_file.dart';
 import 'ui/hivenet_ui.dart';
 
 const _port = 8765;
-final themeMode = ValueNotifier(ThemeMode.light);
+final themeMode = ValueNotifier(ThemeMode.dark);
 void main() => runApp(const App());
 
 class App extends StatelessWidget {
@@ -52,7 +54,7 @@ class App extends StatelessWidget {
   ]));
   Widget _stat(BuildContext context, IconData icon, String value, String label) => SizedBox(width: 130, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: Theme.of(context).colorScheme.primary), const SizedBox(height: 10), Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)), Text(label, style: Theme.of(context).textTheme.labelMedium)]));
 
-  Widget _storagePage(BuildContext c) => _page(c, 'Storage', [_summary(c), const SectionTitle('Node capacity'), ...peers.map((p) => Padding(padding: const EdgeInsets.only(bottom: 10), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.dns_outlined, color: p.online ? Colors.teal : Theme.of(c).colorScheme.error), title: Text(p.id ?? p.host), subtitle: Text(p.online ? '${size(p.free)} available • ${p.host}:$_port' : '${p.host}:$_port unavailable'), trailing: StatusPill(online: p.online, label: p.online ? 'Live' : 'Offline'))))]);
+  Widget _storagePage(BuildContext c) => _page(c, 'Storage', [_summary(c), const SectionTitle('Node capacity'), ...peers.map((p) => Padding(padding: const EdgeInsets.only(bottom: 10), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.dns_outlined, color: p.online ? Colors.teal : Theme.of(c).colorScheme.error), title: Text(p.id ?? p.host), subtitle: Text(p.online ? '${size(p.free)} available • ${p.host}:$_port' : '${p.host}:$_port unavailable'), trailing: StatusPill(online: p.online, label: p.online ? 'Live' : 'Offline'))))])];
   Widget _peersPage(BuildContext c) => _page(c, 'Peers', [Text('Live network telemetry • tap a connected peer to browse its files.', style: Theme.of(c).textTheme.bodyMedium), const SizedBox(height: 12), ...peers.map((p) => Padding(padding: const EdgeInsets.only(bottom: 10), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, onTap: p.online ? () => browsePeer(p) : null, leading: Icon(p.online ? Icons.lan_outlined : Icons.portable_wifi_off_outlined), title: Text(p.id ?? p.host), subtitle: Text('${p.host}:$_port\n${p.online ? '${p.latencyMs ?? '?'} ms • ${(p.reliability * 100).toStringAsFixed(0)}% reliability • ${size(p.free)} free' : 'Offline'}'), isThreeLine: true, trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () async { setState(() => peers.remove(p)); await savePeers(); }))))) ]);
   Widget _galleryPage(BuildContext c) => _page(c, 'Gallery', [Text('${gallery.length} images discovered across responsive peers.'), const SizedBox(height: 12), ...gallery.map((g) => Padding(padding: const EdgeInsets.only(bottom: 10), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, onTap: () => showDistributedImage(g), leading: Container(width: 50, height: 50, decoration: BoxDecoration(color: Theme.of(c).colorScheme.primaryContainer, borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.image_outlined)), title: Text(g.meta.name), subtitle: Text('${size(g.meta.originalBytes)} → ${size(g.meta.bytes)} • ${g.meta.id.substring(0, 12)}…\n${g.locations.length} replica location(s): ${g.locations.map((p) => p.id ?? p.host).join(', ')}'), isThreeLine: true))))]);
   Widget _routerPage(BuildContext c) { final selected = selectReplicaPeers(peers, (p) => PeerCandidate(key: p.key, freeBytes: p.free, latencyMs: p.latencyMs, online: p.online, successes: p.successes, failures: p.failures), 0); return _page(c, 'Smart Router', [HnCard(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [const Icon(Icons.account_tree_outlined), const SizedBox(width: 10), const Text('Two independent replicas', style: TextStyle(fontWeight: FontWeight.w800)), const Spacer(), StatusPill(online: selected.length == 2, label: selected.length == 2 ? 'Ready' : 'Needs peers')]), const SizedBox(height: 12), const Text('Scores use actual free space, probe latency, availability, and verified-transfer reliability.'), ...selected.asMap().entries.map((e) => ListTile(contentPadding: EdgeInsets.zero, leading: CircleAvatar(child: Text('${e.key + 1}')), title: Text(e.value.id ?? e.value.host), subtitle: Text('${size(e.value.free)} free • ${e.value.latencyMs ?? '?'} ms • ${(e.value.reliability * 100).toStringAsFixed(0)}% reliable')))])), const SectionTitle('Eligible peer telemetry'), ...peers.map((p) => Padding(padding: const EdgeInsets.only(bottom: 8), child: HnCard(child: ListTile(contentPadding: EdgeInsets.zero, leading: StatusPill(online: p.online, label: p.online ? 'Eligible' : 'Offline'), title: Text(p.id ?? p.host), trailing: Text(p.online ? '${p.latencyMs ?? '?'} ms' : '—'))))]); }
@@ -69,26 +71,34 @@ class App extends StatelessWidget {
 }
 */
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Theme
+// ─────────────────────────────────────────────────────────────────────────────
 ThemeData _theme(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
   final scheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xff5b4bdb),
+    seedColor: kCyan,
     brightness: brightness,
-    surface: brightness == Brightness.light
-        ? const Color(0xfffffbf7)
-        : const Color(0xff17151d),
+    primary: kCyan,
+    secondary: kPurple,
+    tertiary: kAmber,
+    surface: dark ? kDarkSurface : const Color(0xffF5F7F6),
+    error: kRed,
   );
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: brightness == Brightness.light
-        ? const Color(0xfff6f3f0)
-        : const Color(0xff100f14),
+    scaffoldBackgroundColor: dark ? kDarkBg : const Color(0xffEEF2F0),
     cardTheme: CardThemeData(
-      color: scheme.surface,
+      color: dark ? const Color(0xff14222B) : Colors.white,
       surfaceTintColor: Colors.transparent,
     ),
     navigationBarTheme: NavigationBarThemeData(
-      indicatorColor: scheme.primaryContainer,
+      backgroundColor: Colors.transparent,
+      indicatorColor: kCyan.withOpacity(0.16),
+      labelTextStyle: WidgetStateProperty.all(
+        const TextStyle(fontWeight: FontWeight.w600, fontSize: 11),
+      ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
@@ -98,9 +108,16 @@ ThemeData _theme(Brightness brightness) {
         borderSide: BorderSide.none,
       ),
     ),
+    textTheme: ThemeData(brightness: brightness).textTheme.apply(
+      bodyColor: dark ? Colors.white : const Color(0xff1E1B4B),
+      displayColor: dark ? Colors.white : const Color(0xff1D3037),
+    ),
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Domain models (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 class Peer {
   Peer(this.host);
   final String host;
@@ -156,13 +173,16 @@ class ActivityEvent {
   final bool error;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Dashboard widget
+// ─────────────────────────────────────────────────────────────────────────────
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
   @override
   State<Dashboard> createState() => _DashboardState();
 }
 
-class _DashboardState extends State<Dashboard> {
+class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
   final picker = ImagePicker();
   final vault = OwnerVault();
   final ownerRecords = <String, Map<String, dynamic>>{};
@@ -176,6 +196,14 @@ class _DashboardState extends State<Dashboard> {
   var nodeId = '';
   var busy = true;
   var status = 'Starting node...';
+
+  // Background gradient animation controller
+  late final AnimationController _bgAnimationController;
+  // Storage ring animation controller
+  late final AnimationController _storageRingCtrl;
+  // Router topology animation controller
+  late final AnimationController _routerAnimCtrl;
+
   void log(String title, String detail, IconData icon, {bool error = false}) {
     activity.insert(0, ActivityEvent(title, detail, icon, error: error));
     if (activity.length > 30) activity.removeLast();
@@ -184,6 +212,18 @@ class _DashboardState extends State<Dashboard> {
   @override
   void initState() {
     super.initState();
+    _bgAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat(reverse: true);
+    _storageRingCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    _routerAnimCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
     init().catchError((Object error, StackTrace stack) {
       if (mounted) {
         setState(() {
@@ -194,9 +234,20 @@ class _DashboardState extends State<Dashboard> {
     });
   }
 
+  @override
+  void dispose() {
+    _bgAnimationController.dispose();
+    _storageRingCtrl.dispose();
+    _routerAnimCtrl.dispose();
+    super.dispose();
+  }
+
+  // ─── business logic (all unchanged) ───────────────────────────────────────
+
   String randomId() => base64Url
       .encode(List.generate(12, (_) => Random.secure().nextInt(256)))
       .replaceAll('=', '');
+
   Future<void> init() async {
     if (kIsWeb) {
       await Hive.initFlutter();
@@ -307,6 +358,8 @@ class _DashboardState extends State<Dashboard> {
             ? 'Browser client connected to LAN peers'
             : 'Node active on port $_port';
       });
+      // Animate the storage ring whenever a refresh completes
+      _storageRingCtrl.forward(from: 0);
     }
   }
 
@@ -641,67 +694,711 @@ class _DashboardState extends State<Dashboard> {
     }
   }
 
+  // ─── helpers ──────────────────────────────────────────────────────────────
+
   String size(int n) => n > 1048576
       ? '${(n / 1048576).toStringAsFixed(1)} MB'
       : '${(n / 1024).toStringAsFixed(0)} KB';
-  Widget _home(BuildContext c) => Scaffold(
-    appBar: AppBar(
-      title: const Text('HiveNet'),
-      actions: [
-        IconButton(
-          onPressed: busy ? null : refresh,
-          icon: const Icon(Icons.refresh),
-        ),
-        IconButton(onPressed: addPeer, icon: const Icon(Icons.add_link)),
-      ],
-    ),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: busy ? null : upload,
-      icon: const Icon(Icons.upload),
-      label: const Text('Upload image'),
-    ),
-    body: RefreshIndicator(
-      onRefresh: refresh,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
+
+  int get onlineCount => peers.where((p) => p.online).length;
+  int get pooledFree =>
+      peers.where((p) => p.online).fold(0, (n, p) => n + p.free);
+
+  // ─── page builders ────────────────────────────────────────────────────────
+
+  Widget _home(BuildContext c) {
+    final dark = Theme.of(c).brightness == Brightness.dark;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
         children: [
-          HnCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'THIS DEVICE',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+          // Pull-to-refresh scroll view
+          CustomScrollView(
+            slivers: [
+              // ── Gradient SliverAppBar ──
+              SliverAppBar(
+                expandedHeight: 220,
+                pinned: true,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                actions: [
+                  IconButton(
+                    onPressed: busy ? null : refresh,
+                    icon: const Icon(Icons.refresh, color: Colors.white),
                   ),
-                  const SizedBox(height: 8),
-                  SelectableText(nodeId),
-                  Text(status),
-                  Text(PlatformNode.receiverDescription),
+                  IconButton(
+                    onPressed: addPeer,
+                    icon: const Icon(Icons.add_link, color: Colors.white),
+                  ),
                 ],
+                flexibleSpace: FlexibleSpaceBar(
+                  titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+                  title: const Text(
+                    'HiveNet',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 26,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  background: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // Gradient background
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xff172832), Color(0xff0E1A21)],
+                          ),
+                        ),
+                      ),
+                      // Honeycomb decoration via CustomPaint
+                      Positioned.fill(
+                        child: CustomPaint(painter: _HoneycombPainter()),
+                      ),
+                      // Bottom blur fade
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 60,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                (dark ? kDarkBg : const Color(0xffEEECFF))
+                                    .withOpacity(0.7),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    const SizedBox(height: 8),
+
+                    // ── Node info card ──
+                    GlassCard(
+                      glowColor: kPurple,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              ShaderMask(
+                                shaderCallback: (b) => const LinearGradient(
+                                  colors: [kPurple, kCyan],
+                                ).createShader(b),
+                                child: const Text(
+                                  'THIS DEVICE',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                    letterSpacing: 1.8,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              AnimatedStatusPill(
+                                online: !busy,
+                                label: busy ? 'Syncing' : 'Live',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          SelectableText(
+                            nodeId,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 11,
+                              color: dark ? Colors.white70 : Colors.black54,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            status,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: dark ? kCyan : kPurple,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            PlatformNode.receiverDescription,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: dark ? Colors.white54 : Colors.black45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // ── Metric cards row ──
+                    SizedBox(
+                      height: 120,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GradientMetricCard(
+                              icon: Icons.storage_outlined,
+                              value: size(pooledFree),
+                              label: 'Pooled storage',
+                              colors: const [kPurple, kPink],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: GradientMetricCard(
+                              icon: Icons.devices_outlined,
+                              value: '$onlineCount/${peers.length}',
+                              label: 'Peers online',
+                              colors: const [kCyan, kPurple],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: GradientMetricCard(
+                              icon: Icons.photo_library_outlined,
+                              value: '${gallery.length}',
+                              label: 'Gallery items',
+                              colors: const [kPink, kAmber],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+
+                    // ── Peers section ──
+                    NeonSectionTitle(
+                      'Peers ($onlineCount/${peers.length} online)',
+                      color: kCyan,
+                    ),
+                    ...peers.asMap().entries.map(
+                      (entry) => _animatedPeerCard(c, entry.value, entry.key),
+                    ),
+                    if (peers.isEmpty)
+                      GlassCard(
+                        child: Text(
+                          'No peers yet. Tap + to add a LAN peer.',
+                          style: TextStyle(
+                            color: dark ? Colors.white54 : Colors.black45,
+                          ),
+                        ),
+                      ),
+
+                    // ── Distributed gallery ──
+                    NeonSectionTitle(
+                      'Distributed Gallery (${gallery.length})',
+                      color: kPink,
+                    ),
+                    if (gallery.isEmpty)
+                      GlassCard(
+                        glowColor: kPink,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.cloud_outlined, color: kPink),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'No distributed images yet.',
+                                style: TextStyle(
+                                  color: dark ? Colors.white60 : Colors.black54,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 1.1,
+                            ),
+                        itemCount: gallery.length,
+                        itemBuilder: (c, i) => _galleryTile(c, gallery[i]),
+                      ),
+
+                    // ── Local gallery ──
+                    NeonSectionTitle(
+                      'Local Replicas (${images.length})',
+                      color: kAmber,
+                    ),
+                    if (images.isEmpty)
+                      GlassCard(
+                        glowColor: kAmber,
+                        child: const Text(
+                          'No local replicas yet. This device becomes a '
+                          'replica when another device uploads.',
+                        ),
+                      )
+                    else
+                      ...images.map(
+                        (m) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: GlassCard(
+                            glowColor: kAmber,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [kAmber, kPink],
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.image_outlined,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              title: Text(m.name),
+                              subtitle: Text(
+                                '${size(m.bytes)} · ${m.id.substring(0, 10)}…',
+                              ),
+                              onTap: () => showImage(m),
+                            ),
+                          ),
+                        ),
+                      ),
+
+                    if (lastCompression != null) ...[
+                      const SizedBox(height: 8),
+                      GlassCard(
+                        glowColor: kGreen,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.compress, color: kGreen, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Last upload: $lastCompression',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ]),
+                ),
+              ),
+            ],
+          ),
+
+          // ── Upload busy overlay ──
+          if (busy) _uploadOverlay(c),
+        ],
+      ),
+
+      // ── Upload FAB ──
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: NeonButton(
+          label: 'Upload Image',
+          icon: Icons.upload_outlined,
+          onPressed: busy ? null : upload,
+          colors: const [kPurple, kCyan],
+        ),
+      ),
+    );
+  }
+
+  /// Animated peer card with staggered opacity slide-in
+  Widget _animatedPeerCard(BuildContext c, Peer p, int index) {
+    final dark = Theme.of(c).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AnimatedOpacity(
+        duration: Duration(milliseconds: 300 + index * 80),
+        opacity: 1.0,
+        child: GlassCard(
+          glowColor: p.online ? kCyan : kRed,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: p.online ? [kCyan, kGreen] : [kRed, kPink],
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                p.online ? Icons.check_circle_outline : Icons.cloud_off,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            title: Text(p.id ?? p.host),
+            subtitle: Text(
+              '${p.host}:$_port'
+              '${p.online ? ' · ${size(p.free)} free · ${p.latencyMs ?? '?'} ms · ${(p.reliability * 100).toStringAsFixed(0)}% reliable' : ' · offline'}',
+              style: TextStyle(
+                fontSize: 11,
+                color: dark ? Colors.white54 : Colors.black54,
+              ),
+            ),
+            onTap: p.online ? () => browsePeer(p) : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedStatusPill(
+                  online: p.online,
+                  label: p.online ? 'Live' : 'Off',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  onPressed: () async {
+                    setState(() => peers.remove(p));
+                    await savePeers();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Gallery grid tile with shimmer placeholder
+  Widget _galleryTile(BuildContext c, GalleryImage entry) {
+    return GestureDetector(
+      onTap: () => showDistributedImage(entry),
+      child: GlassCard(
+        glowColor: kPink,
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [kPurple, kPink, kCyan],
+                      stops: [0.0, 0.5, 1.0],
+                    ),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.image_outlined,
+                      color: Colors.white54,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              entry.meta.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+            ),
+            Text(
+              '${entry.locations.length} replica(s)',
+              style: const TextStyle(fontSize: 10, color: kCyan),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Full-screen upload overlay with HiveUploadAnimation
+  Widget _uploadOverlay(BuildContext c) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: busy ? 1.0 : 0.0,
+      child: IgnorePointer(
+        ignoring: !busy,
+        child: Container(
+          color: Colors.black.withOpacity(0.75),
+          child: Center(child: HiveUploadAnimation(statusText: status)),
+        ),
+      ),
+    );
+  }
+
+  // ─── storage page ─────────────────────────────────────────────────────────
+
+  Widget _storage(BuildContext c) {
+    final totalFree = pooledFree;
+    // Use a heuristic fraction for the ring (at most 0.85 for display)
+    final usedFraction = peers.isEmpty ? 0.0 : 0.38.clamp(0.0, 0.85);
+    final dark = Theme.of(c).brightness == Brightness.dark;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+      children: [
+        const SizedBox(height: 16),
+        NeonSectionTitle('Storage', color: kPurple),
+
+        // Animated ring
+        GlassCard(
+          glowColor: kPurple,
+          child: Column(
+            children: [
+              AnimatedBuilder(
+                animation: _storageRingCtrl,
+                builder: (context, _) => SizedBox(
+                  height: 200,
+                  child: CustomPaint(
+                    painter: StorageRingPainter(
+                      fraction: usedFraction,
+                      progress: _storageRingCtrl.value,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (b) =>
+                                const LinearGradient(colors: [kPurple, kCyan])
+                                    .createShader(b),
+                            child: Text(
+                              size(totalFree),
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const Text(
+                            'pooled free',
+                            style: TextStyle(fontSize: 12, color: kCyan),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _legendDot(kPurple, 'Used'),
+                  const SizedBox(width: 20),
+                  _legendDot(kCyan, 'Free'),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        NeonSectionTitle('Node Capacity', color: kCyan),
+        ...peers.map(
+          (p) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: GlassCard(
+              glowColor: p.online ? kCyan : kRed,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.storage_outlined,
+                  color: p.online ? kCyan : kRed,
+                ),
+                title: Text(p.id ?? p.host),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      p.online
+                          ? '${size(p.free)} available · ${p.host}:$_port'
+                          : '${p.host}:$_port unavailable',
+                    ),
+                    if (p.online) ...[
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: p.free > 0
+                              ? (1 - p.free / (p.free + 1024 * 1024)).clamp(
+                                  0.0,
+                                  1.0,
+                                )
+                              : 0,
+                          backgroundColor: dark
+                              ? Colors.white12
+                              : Colors.black12,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            kCyan,
+                          ),
+                          minHeight: 5,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                trailing: AnimatedStatusPill(
+                  online: p.online,
+                  label: p.online ? 'Live' : 'Offline',
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Peers (${peers.where((p) => p.online).length}/${peers.length} online)',
-            style: Theme.of(c).textTheme.titleLarge,
+        ),
+      ],
+    );
+  }
+
+  Widget _legendDot(Color color, String label) => Row(
+    children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 6),
+      Text(label, style: const TextStyle(fontSize: 12)),
+    ],
+  );
+
+  // ─── peers page ───────────────────────────────────────────────────────────
+
+  Widget _peers(BuildContext c) {
+    final dark = Theme.of(c).brightness == Brightness.dark;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+      children: [
+        const SizedBox(height: 16),
+        NeonSectionTitle('Peers', color: kCyan),
+        Text(
+          'Live network telemetry · tap a connected peer to browse its files.',
+          style: TextStyle(
+            fontSize: 12,
+            color: dark ? Colors.white54 : Colors.black54,
           ),
-          ...peers.map(
-            (p) => HnCard(
+        ),
+        const SizedBox(height: 12),
+        ...peers.asMap().entries.map((entry) {
+          final p = entry.value;
+          final reliability = p.reliability;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: GlassCard(
+              glowColor: p.online ? kCyan : kRed,
               child: ListTile(
-                leading: Icon(
-                  p.online ? Icons.check_circle : Icons.cloud_off,
-                  color: p.online ? Colors.green : Colors.red,
+                contentPadding: EdgeInsets.zero,
+                onTap: p.online ? () => browsePeer(p) : null,
+                leading: Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: p.online ? [kCyan, kGreen] : [kRed, kPink],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    p.online
+                        ? Icons.lan_outlined
+                        : Icons.portable_wifi_off_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
                 title: Text(p.id ?? p.host),
-                subtitle: Text(
-                  '${p.host}:$_port${p.online ? ' - ${size(p.free)} free, ${p.latencyMs ?? '?'} ms, ${(p.reliability * 100).toStringAsFixed(0)}% reliable' : ' - offline'}',
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${p.host}:$_port · ${p.online ? '${p.latencyMs ?? '?'} ms' : 'Offline'}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    if (p.online) ...[
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          const Text(
+                            'Latency  ',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: ((p.latencyMs ?? 500) / 500).clamp(
+                                  0.0,
+                                  1.0,
+                                ),
+                                backgroundColor: dark
+                                    ? Colors.white12
+                                    : Colors.black12,
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  kAmber,
+                                ),
+                                minHeight: 4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          const Text(
+                            'Reliability',
+                            style: TextStyle(fontSize: 10),
+                          ),
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: reliability,
+                                backgroundColor: dark
+                                    ? Colors.white12
+                                    : Colors.black12,
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                  kGreen,
+                                ),
+                                minHeight: 4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
-                onTap: p.online ? () => browsePeer(p) : null,
+                isThreeLine: p.online,
                 trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(Icons.delete_outline, size: 18),
                   onPressed: () async {
                     setState(() => peers.remove(p));
                     await savePeers();
@@ -709,201 +1406,384 @@ class _DashboardState extends State<Dashboard> {
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Distributed gallery (${gallery.length})',
-            style: Theme.of(c).textTheme.titleLarge,
-          ),
-          ...gallery.map(
-            (entry) => HnCard(
-              child: ListTile(
-                leading: const Icon(Icons.hub),
-                title: Text(entry.meta.name),
-                subtitle: Text(
-                  '${size(entry.meta.originalBytes)} → ${size(entry.meta.bytes)} '
-                  '(${((1 - entry.meta.compressionRatio) * 100).toStringAsFixed(0)}% smaller)\n'
-                  '${entry.meta.id.substring(0, 12)}… • ${entry.locations.length} peer replica(s): '
-                  '${entry.locations.map((p) => p.id ?? p.host).join(', ')}',
+          );
+        }),
+      ],
+    );
+  }
+
+  // ─── gallery page ─────────────────────────────────────────────────────────
+
+  Widget _gallery(BuildContext c) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+      children: [
+        const SizedBox(height: 16),
+        NeonSectionTitle('Gallery', color: kPink),
+        Text('${gallery.length} images discovered across responsive peers.'),
+        const SizedBox(height: 12),
+        if (gallery.isEmpty)
+          GlassCard(
+            glowColor: kPink,
+            child: const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32),
+                child: Column(
+                  children: [
+                    Icon(Icons.photo_library_outlined, color: kPink, size: 48),
+                    SizedBox(height: 12),
+                    Text('No distributed images yet.'),
+                  ],
                 ),
-                isThreeLine: true,
-                onTap: () => showDistributedImage(entry),
               ),
             ),
-          ),
-          if (lastCompression != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text('Last upload: $lastCompression'),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: 0.9,
             ),
-          const SizedBox(height: 12),
-          Text(
-            'Local gallery (${images.length})',
-            style: Theme.of(c).textTheme.titleLarge,
-          ),
-          ...images.map(
-            (m) => HnCard(
-              child: ListTile(
-                leading: const Icon(Icons.image),
-                title: Text(m.name),
-                subtitle: Text(
-                  '${size(m.bytes)} - ${m.id.substring(0, 10)}...',
+            itemCount: gallery.length,
+            itemBuilder: (c, i) {
+              final g = gallery[i];
+              return GestureDetector(
+                onTap: () => showDistributedImage(g),
+                child: GlassCard(
+                  glowColor: kPink,
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              ShimmerBox(height: double.infinity),
+                              const Center(
+                                child: Icon(
+                                  Icons.image_outlined,
+                                  color: Colors.white54,
+                                  size: 36,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        g.meta.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        '${size(g.meta.bytes)} · ${g.locations.length} replica(s)',
+                        style: const TextStyle(fontSize: 10, color: kCyan),
+                      ),
+                    ],
+                  ),
                 ),
-                onTap: () => showImage(m),
-              ),
-            ),
+              );
+            },
           ),
-          if (images.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                'No local replicas yet. This device becomes a replica when another device uploads.',
-              ),
-            ),
-        ],
+      ],
+    );
+  }
+
+  // ─── router page ──────────────────────────────────────────────────────────
+
+  Widget _router(BuildContext c) {
+    final selected = selectReplicaPeers(
+      peers,
+      (p) => PeerCandidate(
+        key: p.key,
+        freeBytes: p.free,
+        latencyMs: p.latencyMs,
+        online: p.online,
+        successes: p.successes,
+        failures: p.failures,
       ),
-    ),
-  );
+      0,
+    );
+    final dark = Theme.of(c).brightness == Brightness.dark;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+      children: [
+        const SizedBox(height: 16),
+        NeonSectionTitle('Smart Router', color: kAmber),
+
+        // Animated topology diagram
+        GlassCard(
+          glowColor: kAmber,
+          padding: const EdgeInsets.all(0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: SizedBox(
+              height: 200,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: AnimatedBuilder(
+                      animation: _routerAnimCtrl,
+                      builder: (context, _) => CustomPaint(
+                        painter: RouterTopologyPainter(
+                          _routerAnimCtrl.value,
+                          onlinePeers: onlineCount,
+                          totalPeers: peers.length,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 16,
+                    left: 18,
+                    child: Row(
+                      children: const [
+                        PulsingDot(color: kCyan, size: 6),
+                        SizedBox(width: 7),
+                        Text(
+                          'LIVE ROUTES',
+                          style: TextStyle(
+                            color: kCyan,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Positioned(
+                    bottom: 15,
+                    left: 0,
+                    right: 0,
+                    child: Text(
+                      'LOCAL COORDINATOR',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        GlassCard(
+          glowColor: kAmber,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.account_tree_outlined, color: kAmber),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Two independent replicas',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const Spacer(),
+                  AnimatedStatusPill(
+                    online: selected.length == 2,
+                    label: selected.length == 2 ? 'Ready' : 'Needs peers',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Scores use actual free space, probe latency, availability, and verified-transfer reliability.',
+                style: TextStyle(
+                  color: dark ? Colors.white60 : Colors.black54,
+                  fontSize: 13,
+                ),
+              ),
+              ...selected.asMap().entries.map(
+                (e) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [kPurple, kCyan]),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${e.key + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: Text(e.value.id ?? e.value.host),
+                  subtitle: Text(
+                    '${size(e.value.free)} free · ${e.value.latencyMs ?? '?'} ms · ${(e.value.reliability * 100).toStringAsFixed(0)}% reliable',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        NeonSectionTitle('Eligible Peer Telemetry', color: kCyan),
+        ...peers.map(
+          (p) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: GlassCard(
+              glowColor: p.online ? kGreen : kRed,
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: AnimatedStatusPill(
+                  online: p.online,
+                  label: p.online ? 'Eligible' : 'Offline',
+                ),
+                title: Text(p.id ?? p.host),
+                trailing: Text(
+                  p.online ? '${p.latencyMs ?? '?'} ms' : '—',
+                  style: TextStyle(
+                    color: p.online ? kCyan : kRed,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── settings page ────────────────────────────────────────────────────────
+
+  Widget _settings(BuildContext c) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+      children: [
+        const SizedBox(height: 16),
+        NeonSectionTitle('Settings', color: kPurple),
+
+        GlassCard(
+          glowColor: kPurple,
+          child: SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: ShaderMask(
+              shaderCallback: (b) =>
+                  const LinearGradient(colors: [kPurple, kCyan])
+                      .createShader(b),
+              child: const Text(
+                'Dark Theme',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            subtitle: const Text('Use HiveNet\'s cyberpunk dark palette.'),
+            value: themeMode.value == ThemeMode.dark,
+            onChanged: (v) =>
+                themeMode.value = v ? ThemeMode.dark : ThemeMode.light,
+            activeColor: kPurple,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        GlassCard(
+          glowColor: kCyan,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.network_check_outlined, color: kCyan),
+            title: const Text(
+              'Run Diagnostics',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(status),
+            onTap: refresh,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        GlassCard(
+          glowColor: kAmber,
+          child: const ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.repeat_rounded, color: kAmber),
+            title: Text(
+              'Replication Factor',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text('Two independent verified replicas'),
+            trailing: Text(
+              '2',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 20,
+                color: kAmber,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        GlassCard(
+          glowColor: kGreen,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.memory_outlined, color: kGreen),
+            title: const Text(
+              'This Device',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text('${PlatformNode.receiverDescription}\n$nodeId'),
+            isThreeLine: true,
+          ),
+        ),
+        const SizedBox(height: 10),
+
+        GlassCard(
+          glowColor: kPink,
+          child: const ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.verified_user_outlined, color: kPink),
+            title: Text(
+              'End-to-End Encryption',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text('AES-256-GCM · SHA-256 content addressing'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── _tab variable + build ────────────────────────────────────────────────
 
   int _tab = 0;
-  Widget _simplePage(BuildContext c, String title, List<Widget> content) =>
-      ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Text(
-            title,
-            style: Theme.of(c).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 16),
-          ...content,
-        ],
-      );
-  Widget _storage(BuildContext c) => _simplePage(c, 'Storage', [
-    HnCard(
-      child: Text(
-        '${size(peers.where((p) => p.online).fold(0, (n, p) => n + p.free))} pooled live capacity',
-        style: Theme.of(c).textTheme.titleLarge,
-      ),
-    ),
-    const SizedBox(height: 16),
-    ...peers.map(
-      (p) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: HnCard(
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              Icons.storage_outlined,
-              color: p.online ? Colors.teal : Theme.of(c).colorScheme.error,
-            ),
-            title: Text(p.id ?? p.host),
-            subtitle: Text(p.online ? '${size(p.free)} available' : 'Offline'),
-            trailing: StatusPill(
-              online: p.online,
-              label: p.online ? 'Live' : 'Offline',
-            ),
-          ),
-        ),
-      ),
-    ),
-  ]);
-  Widget _peers(BuildContext c) => _simplePage(c, 'Peers', [
-    ...peers.map(
-      (p) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: HnCard(
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            onTap: p.online ? () => browsePeer(p) : null,
-            leading: const Icon(Icons.devices_outlined),
-            title: Text(p.id ?? p.host),
-            subtitle: Text(
-              '${p.host}:$_port • ${p.online ? '${p.latencyMs ?? '?'} ms • ${(p.reliability * 100).toStringAsFixed(0)}% reliable' : 'Offline'}',
-            ),
-          ),
-        ),
-      ),
-    ),
-  ]);
-  Widget _gallery(BuildContext c) => _simplePage(c, 'Gallery', [
-    ...gallery.map(
-      (g) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: HnCard(
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            onTap: () => showDistributedImage(g),
-            leading: const Icon(Icons.image_outlined),
-            title: Text(g.meta.name),
-            subtitle: Text(
-              '${size(g.meta.bytes)} • ${g.meta.id.substring(0, 12)}… • ${g.locations.length} replica locations',
-            ),
-          ),
-        ),
-      ),
-    ),
-  ]);
-  Widget _router(BuildContext c) => _simplePage(c, 'Smart Router', [
-    HnCard(
-      child: const Text(
-        'The router requires two distinct online Android peers and ranks them using live free capacity, measured latency, and verified transfer reliability.',
-      ),
-    ),
-    const SizedBox(height: 16),
-    ...peers.map(
-      (p) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: HnCard(
-          child: ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: StatusPill(
-              online: p.online,
-              label: p.online ? 'Eligible' : 'Offline',
-            ),
-            title: Text(p.id ?? p.host),
-            subtitle: Text(
-              '${size(p.free)} free • ${p.latencyMs ?? '?'} ms • ${(p.reliability * 100).toStringAsFixed(0)}% reliability',
-            ),
-          ),
-        ),
-      ),
-    ),
-  ]);
-  Widget _settings(BuildContext c) => _simplePage(c, 'Settings', [
-    HnCard(
-      child: SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Dark theme'),
-        subtitle: const Text('Use HiveNet’s Material 3 dark palette.'),
-        value: themeMode.value == ThemeMode.dark,
-        onChanged: (v) =>
-            themeMode.value = v ? ThemeMode.dark : ThemeMode.light,
-      ),
-    ),
-    const SizedBox(height: 10),
-    HnCard(
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.network_check_outlined),
-        title: const Text('Run diagnostics'),
-        subtitle: Text(status),
-        onTap: refresh,
-      ),
-    ),
-    const SizedBox(height: 10),
-    const HnCard(
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(Icons.repeat_rounded),
-        title: Text('Replication factor'),
-        subtitle: Text('Two independent verified replicas'),
-        trailing: Text('2'),
-      ),
-    ),
-  ]);
+
   @override
   Widget build(BuildContext c) {
+    final dark = Theme.of(c).brightness == Brightness.dark;
+
     final pages = [
       _home(c),
       _storage(c),
@@ -928,19 +1808,200 @@ class _DashboardState extends State<Dashboard> {
       Icons.account_tree_outlined,
       Icons.settings_outlined,
     ];
+    const selectedIcons = [
+      Icons.home_rounded,
+      Icons.storage_rounded,
+      Icons.devices_rounded,
+      Icons.photo_library_rounded,
+      Icons.account_tree_rounded,
+      Icons.settings_rounded,
+    ];
+    final navColors = [kPurple, kCyan, kGreen, kPink, kAmber, kCyan];
+
     return Scaffold(
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 220),
-        child: KeyedSubtree(key: ValueKey(_tab), child: pages[_tab]),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
-        destinations: List.generate(
-          6,
-          (i) => NavigationDestination(icon: Icon(icons[i]), label: labels[i]),
-        ),
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ── Animated shifting gradient background ──
+          AnimatedBuilder(
+            animation: _bgAnimationController,
+            builder: (context, _) {
+              final t = _bgAnimationController.value;
+              return Container(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment(-0.7 + t * 0.25, -0.9 + t * 0.18),
+                    radius: 1.25,
+                    colors: dark
+                        ? [
+                            kDarkSurface,
+                            Color.lerp(kDarkBg, kCyan.withOpacity(0.16), t)!,
+                            kDarkBg,
+                          ]
+                        : [
+                            const Color(0xffF8FAF9),
+                            Color.lerp(
+                              const Color(0xffEEF2F0),
+                              kCyan.withOpacity(0.07),
+                              t * 0.35,
+                            )!,
+                            const Color(0xffEEF2F0),
+                          ],
+                  ),
+                ),
+              );
+            },
+          ),
+
+          // ── Page content with animated tab switch ──
+          TabTransitionWrapper(tabIndex: _tab, child: pages[_tab]),
+
+          // ── Floating frosted glass navigation bar ──
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(28),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: dark
+                        ? Colors.white.withOpacity(0.09)
+                        : Colors.white.withOpacity(0.65),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(dark ? 0.15 : 0.55),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: navColors[_tab].withOpacity(0.22),
+                        blurRadius: 28,
+                        spreadRadius: -4,
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: List.generate(6, (i) {
+                        final selected = _tab == i;
+                        return GestureDetector(
+                          onTap: () => setState(() => _tab = i),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            curve: Curves.easeOutCubic,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              color: selected
+                                  ? navColors[i].withOpacity(0.22)
+                                  : Colors.transparent,
+                              boxShadow: selected
+                                  ? [
+                                      BoxShadow(
+                                        color: navColors[i].withOpacity(0.4),
+                                        blurRadius: 14,
+                                        spreadRadius: -2,
+                                      ),
+                                    ]
+                                  : [],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  selected ? selectedIcons[i] : icons[i],
+                                  color: selected
+                                      ? navColors[i]
+                                      : (dark
+                                            ? Colors.white38
+                                            : Colors.black38),
+                                  size: 22,
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  labels[i],
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: selected
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: selected
+                                        ? navColors[i]
+                                        : (dark
+                                              ? Colors.white38
+                                              : Colors.black38),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HoneycombPainter  –  decorative header background
+// ─────────────────────────────────────────────────────────────────────────────
+class _HoneycombPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..color = Colors.white.withOpacity(0.18);
+
+    const r = 28.0; // hex radius
+    const dx = r * 1.732; // horizontal step
+    const dy = r * 1.5; // vertical step
+
+    for (var row = -1; row < size.height / dy + 2; row++) {
+      for (var col = -1; col < size.width / dx + 2; col++) {
+        final cx = col * dx + (row.isOdd ? dx / 2 : 0);
+        final cy = row * dy;
+        _drawHex(canvas, Offset(cx, cy), r, paint);
+      }
+    }
+  }
+
+  void _drawHex(Canvas canvas, Offset center, double r, Paint paint) {
+    const sides = 6;
+    final path = Path();
+    for (var i = 0; i < sides; i++) {
+      final angle = (i * 60 - 30) * (3.14159265358979 / 180);
+      final x = center.dx + r * cos(angle);
+      final y = center.dy + r * sin(angle);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_HoneycombPainter _) => false;
 }
