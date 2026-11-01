@@ -4,6 +4,22 @@ HiveNet is a direct LAN image replica app. Every install has its own randomly
 generated node ID and private app storage. It does not use cloud storage,
 shared folders, Firebase, or a central database.
 
+## Privacy model
+
+Before a replica leaves its owner, HiveNet compresses the selected image and
+encrypts those bytes with a unique AES-256-GCM key and nonce. The key and the
+per-object deletion capability remain in `flutter_secure_storage` (Android
+Keystore-backed where available) on the owner device. Peers receive opaque
+ciphertext, an opaque SHA-256 ciphertext ID, and only the byte count required
+to operate storage; they cannot preview an image or recover its filename.
+
+Each peer stores a hash of an unguessable deletion capability, never the
+capability itself. The owner must present it for `DELETE /v1/files/<id>`.
+This is authenticated deletion, not a guarantee of physical-media erasure:
+flash wear levelling, backups, and a malicious modified peer are outside the
+control of an application-level delete request. An interrupted/offline deletion
+must be retried by the owner before it can be considered complete.
+
 ## Protocol and storage
 
 The Android foreground service listens on TCP port `8765` even when the Flutter

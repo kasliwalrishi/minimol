@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'hive_core.dart';
 import 'platform_node.dart';
+import 'secure_file.dart';
 import 'ui/hivenet_ui.dart';
 
 const _port = 8765;
@@ -163,6 +164,8 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard> {
   final picker = ImagePicker();
+  final vault = OwnerVault();
+  final ownerRecords = <String, Map<String, dynamic>>{};
   final peers = <Peer>[];
   Box<dynamic>? _webImages;
   var images = <Meta>[];
@@ -200,6 +203,14 @@ class _DashboardState extends State<Dashboard> {
       _webImages = await Hive.openBox<dynamic>('hivenet_images');
     }
     final prefs = await SharedPreferences.getInstance();
+    final savedOwner =
+        jsonDecode(prefs.getString('ownedEncryptedFiles') ?? '{}') as Map;
+    ownerRecords.addAll(
+      savedOwner.map(
+        (key, value) =>
+            MapEntry(key as String, Map<String, dynamic>.from(value as Map)),
+      ),
+    );
     nodeId = prefs.getString('node') ?? randomId();
     await prefs.setString('node', nodeId);
     for (final saved
@@ -226,6 +237,11 @@ class _DashboardState extends State<Dashboard> {
       'peers',
       jsonEncode(peers.map((e) => e.toJson()).toList()),
     );
+  }
+
+  Future<void> saveOwnerRecords() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ownedEncryptedFiles', jsonEncode(ownerRecords));
   }
 
   Future<http.Response> get(String u) =>
@@ -363,19 +379,20 @@ class _DashboardState extends State<Dashboard> {
     Peer peer,
     String id,
     String name,
-    CompressedImage image,
+    EncryptedFile image,
   ) async {
     try {
       final r = await http
           .put(
             Uri.parse('${peer.base}/v1/files/$id'),
-            body: image.bytes,
+            body: image.ciphertext,
             headers: {
-              'Content-Type': 'image/jpeg',
+              'Content-Type': 'application/octet-stream',
               'x-hivenet-sha256': id,
-              'x-hivenet-name': Uri.encodeComponent(name),
-              'x-hivenet-mime': 'image/jpeg',
-              'x-hivenet-original-bytes': '${image.originalBytes}',
+              'x-hivenet-name': 'encrypted-object',
+              'x-hivenet-mime': 'application/octet-stream',
+              'x-hivenet-original-bytes': '${image.ciphertext.length}',
+              'x-hivenet-delete-token-hash': image.deleteTokenHash,
             },
           )
           .timeout(const Duration(seconds: 15));
@@ -396,7 +413,9 @@ class _DashboardState extends State<Dashboard> {
     });
     try {
       final prepared = compressImage(await selected.readAsBytes());
-      final id = prepared.id;
+      setState(() => status = 'Encrypting locally with AES-256-GCM...');
+      final encrypted = await vault.encrypt(prepared.bytes);
+      final id = encrypted.id;
       lastCompression =
           '${size(prepared.originalBytes)} → ${size(prepared.bytes.length)} '
           '(${((1 - prepared.ratio) * 100).toStringAsFixed(0)}% smaller, '
@@ -410,7 +429,11 @@ class _DashboardState extends State<Dashboard> {
         failures: peer.failures,
       );
       // Router only considers responsive peers with enough real free space.
-      if (selectReplicaPeers(peers, candidate, prepared.bytes.length).length !=
+      if (selectReplicaPeers(
+            peers,
+            candidate,
+            encrypted.ciphertext.length,
+          ).length !=
           2) {
         throw Exception('Exactly two distinct eligible peers are required.');
       }
@@ -423,12 +446,12 @@ class _DashboardState extends State<Dashboard> {
         final next = selectReplicaPeers(
           peers.where((peer) => !attemptedKeys.contains(peer.key)),
           candidate,
-          prepared.bytes.length,
+          encrypted.ciphertext.length,
         );
         if (next.isEmpty) break;
         final peer = next.first;
         attemptedKeys.add(peer.key);
-        if (await send(peer, id, selected.name, prepared)) {
+        if (await send(peer, id, selected.name, encrypted)) {
           peer.successes++;
           replicas.add(peer);
         } else {
@@ -445,15 +468,22 @@ class _DashboardState extends State<Dashboard> {
         );
         throw Exception('Could not verify two independent replica writes.');
       }
+      ownerRecords[id] = {
+        'name': selected.name,
+        'nonce': base64Url.encode(encrypted.nonce),
+        'bytes': prepared.bytes.length,
+        'originalBytes': prepared.originalBytes,
+      };
+      await saveOwnerRecords();
       if (kIsWeb) {
         await _webImages!.put(id, {
           'meta': {
             'id': id,
             'name': selected.name,
-            'bytes': prepared.bytes.length,
+            'bytes': encrypted.ciphertext.length,
             'originalBytes': prepared.originalBytes,
           },
-          'bytes': prepared.bytes,
+          'bytes': encrypted.ciphertext,
         });
       }
       if (mounted) {
@@ -505,6 +535,17 @@ class _DashboardState extends State<Dashboard> {
   /// Attempts every known replica in order. A missing/offline first device is
   /// therefore recoverable as long as its other replica is available.
   Future<void> showDistributedImage(GalleryImage image) async {
+    final owner = ownerRecords[image.meta.id];
+    if (owner == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('This encrypted object belongs to another device.'),
+          ),
+        );
+      }
+      return;
+    }
     if (kIsWeb && _webImages!.containsKey(image.meta.id)) {
       await showImage(image.meta);
       return;
@@ -518,10 +559,13 @@ class _DashboardState extends State<Dashboard> {
         final response = await get('${peer.base}/v1/files/${image.meta.id}');
         if (response.statusCode != 200) continue;
         if (mounted) {
-          await _showImage(
-            image.meta.name,
-            _verifiedBytes(image.meta.id, response.bodyBytes),
+          final encrypted = _verifiedBytes(image.meta.id, response.bodyBytes);
+          final plaintext = await vault.decrypt(
+            image.meta.id,
+            encrypted,
+            base64Url.decode(owner['nonce'] as String),
           );
+          await _showImage(owner['name'] as String, plaintext);
         }
         return;
       } catch (_) {

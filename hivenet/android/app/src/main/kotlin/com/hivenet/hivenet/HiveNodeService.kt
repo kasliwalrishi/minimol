@@ -79,6 +79,7 @@ class HiveNodeService : Service() {
                     request.method == "GET" && request.path.startsWith("/v1/files/") && request.path.endsWith("/meta") -> meta(output, idFromPath(request.path))
                     request.method == "GET" && request.path.startsWith("/v1/files/") -> download(output, idFromPath(request.path))
                     request.method == "PUT" && request.path.startsWith("/v1/files/") -> put(input, output, request, idFromPath(request.path))
+                    request.method == "DELETE" && request.path.startsWith("/v1/files/") -> delete(output, request, idFromPath(request.path))
                     else -> response(output, 404, "application/json", "{\"error\":\"not found\"}".toByteArray())
                 }
             } catch (_: Exception) { }
@@ -109,6 +110,9 @@ class HiveNodeService : Service() {
         val length = r.headers["content-length"]?.toLongOrNull() ?: return response(out, 411, "application/json", ByteArray(0))
         if (length < 1 || length > 50L * 1024 * 1024) return response(out, 413, "application/json", ByteArray(0))
         val expected = r.headers["x-hivenet-sha256"] ?: return response(out, 400, "application/json", ByteArray(0))
+        val deleteHash = r.headers["x-hivenet-delete-token-hash"]
+            ?: return response(out, 400, "application/json", "{\"error\":\"missing delete capability\"}".toByteArray())
+        if (!deleteHash.matches(Regex("[a-f0-9]{64}"))) return response(out, 400, "application/json", ByteArray(0))
         val dir = File(root, "files").also { it.mkdirs() }; val tmp = File(dir, "$id.part"); val digest = MessageDigest.getInstance("SHA-256")
         FileOutputStream(tmp).use { file ->
             var remaining = length; val buffer = ByteArray(32 * 1024)
@@ -119,7 +123,7 @@ class HiveNodeService : Service() {
         if (actual != expected.lowercase()) { tmp.delete(); return response(out, 422, "application/json", "{\"error\":\"checksum mismatch\"}".toByteArray()) }
         val target = File(dir, "$id.jpg"); if (!tmp.renameTo(target)) { tmp.copyTo(target, true); tmp.delete() }
         val name = URLDecoder.decode(r.headers["x-hivenet-name"] ?: "image.jpg", "UTF-8")
-        File(dir, "$id.json").writeText(JSONObject().put("id", id).put("name", name).put("mime", r.headers["x-hivenet-mime"] ?: "image/jpeg").put("sha256", actual).put("bytes", length).put("originalBytes", r.headers["x-hivenet-original-bytes"]?.toLongOrNull() ?: length).put("createdAt", System.currentTimeMillis()).toString())
+        File(dir, "$id.json").writeText(JSONObject().put("id", id).put("name", "encrypted-object").put("mime", "application/octet-stream").put("sha256", actual).put("bytes", length).put("originalBytes", r.headers["x-hivenet-original-bytes"]?.toLongOrNull() ?: length).put("deleteTokenHash", deleteHash).put("createdAt", System.currentTimeMillis()).toString())
         response(out, 201, "application/json", JSONObject().put("stored", true).put("id", id).put("sha256", actual).toString().toByteArray())
     }
     private fun info(out: OutputStream) = response(out, 200, "application/json", JSONObject().put("nodeId", nodeId).put("port", port).put("freeBytes", root.usableSpace).toString().toByteArray())
@@ -128,11 +132,22 @@ class HiveNodeService : Service() {
     }
     private fun meta(out: OutputStream, id: String) { val f = File(root, "files/$id.json"); if (!f.exists()) response(out, 404, "application/json", ByteArray(0)) else response(out, 200, "application/json", f.readBytes()) }
     private fun download(out: OutputStream, id: String) { val f = File(root, "files/$id.jpg"); if (!f.exists()) response(out, 404, "application/json", ByteArray(0)) else response(out, 200, "image/jpeg", f.readBytes()) }
+    private fun delete(out: OutputStream, r: Request, id: String) {
+        if (!id.matches(Regex("[a-f0-9]{64}"))) return response(out, 400, "application/json", ByteArray(0))
+        val metadata = File(root, "files/$id.json")
+        if (!metadata.exists()) return response(out, 404, "application/json", ByteArray(0))
+        val supplied = r.headers["x-hivenet-delete-token"] ?: return response(out, 401, "application/json", ByteArray(0))
+        val expected = JSONObject(metadata.readText()).optString("deleteTokenHash")
+        val actual = MessageDigest.getInstance("SHA-256").digest(supplied.toByteArray()).joinToString("") { "%02x".format(it) }
+        if (expected != actual) return response(out, 403, "application/json", ByteArray(0))
+        File(root, "files/$id.jpg").delete(); metadata.delete(); File(root, "files/$id.part").delete()
+        response(out, 200, "application/json", "{\"deleted\":true,\"id\":\"$id\"}".toByteArray())
+    }
     private fun idFromPath(path: String) = path.removePrefix("/v1/files/").removeSuffix("/meta")
     // Chrome's Local Network Access / Private Network Access preflight asks
     // for this explicit opt-in before a public page may contact a LAN peer.
     // Older browsers safely ignore the extra CORS response header.
-    private fun corsPreflight(out: OutputStream) { out.write("HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, PUT, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, X-HiveNet-Sha256, X-HiveNet-Name, X-HiveNet-Mime, X-HiveNet-Original-Bytes\r\nAccess-Control-Allow-Private-Network: true\r\nAccess-Control-Max-Age: 600\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray()); out.flush() }
+    private fun corsPreflight(out: OutputStream) { out.write("HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, PUT, DELETE, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, X-HiveNet-Sha256, X-HiveNet-Name, X-HiveNet-Mime, X-HiveNet-Original-Bytes, X-HiveNet-Delete-Token-Hash, X-HiveNet-Delete-Token\r\nAccess-Control-Allow-Private-Network: true\r\nAccess-Control-Max-Age: 600\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray()); out.flush() }
     private fun response(out: OutputStream, status: Int, type: String, body: ByteArray) { val text = if (status in 200..299) "OK" else "Error"; out.write("HTTP/1.1 $status $text\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Private-Network: true\r\nConnection: close\r\n\r\n".toByteArray()); out.write(body); out.flush() }
     override fun onDestroy() { running = false; server?.close(); workers.shutdownNow(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
