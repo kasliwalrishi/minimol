@@ -1,0 +1,45 @@
+Running Gradle task 'assembleDebug'...                          
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if "Windows_NT" == "Windows_NT" setlocal
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set DEFAULT_JVM_OPTS= 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set DIRNAME=C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android\ 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if "C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android\" == "" set DIRNAME=. 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set APP_BASE_NAME=gradlew 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set APP_HOME=C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android\ 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if defined JAVA_HOME goto findJavaFromJavaHome 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set JAVA_EXE=C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot/bin/java.exe 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if exist "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot/bin/java.exe" goto init 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if not "Windows_NT" == "Windows_NT" goto win9xME_args 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if "@eval[2+2]" == "4" goto 4NT_args 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set CMD_LINE_ARGS= 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set _SKIP=2 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if "x-q" == "x" goto execute 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set CMD_LINE_ARGS=-q -Ptarget-platform=android-arm,android-arm64,android-x64 -Ptarget=lib\main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9CVUlMRF9OQU1FPTEuMC4w,RkxVVFRFUl9CVUlMRF9OVU1CRVI9MQ==,RkxVVFRFUl9WRVJTSU9OPTMuNDcuNw==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049YWJhZjljNTIzNw==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049ZGViMjg3NDgxZQ==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMy41 -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=false -Pflutter.androidSdkRoot=C:\Android -Pflutter.installedNdkVersions=28.2.13676358 -Pflutter.sdkManagerPath=C:\Android\cmdline-tools\latest\bin\sdkmanager.bat assembleDebug 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>goto execute 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>set CLASSPATH=C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android\\gradle\wrapper\gradle-wrapper.jar 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>"C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot/bin/java.exe"    "-Dorg.gradle.appname=gradlew" -classpath "C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android\\gradle\wrapper\gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain -q -Ptarget-platform=android-arm,android-arm64,android-x64 -Ptarget=lib\main.dart -Pbase-application-name=android.app.Application -Pdart-defines=RkxVVFRFUl9CVUlMRF9OQU1FPTEuMC4w,RkxVVFRFUl9CVUlMRF9OVU1CRVI9MQ==,RkxVVFRFUl9WRVJTSU9OPTMuNDcuNw==,RkxVVFRFUl9DSEFOTkVMPXN0YWJsZQ==,RkxVVFRFUl9HSVRfVVJMPWh0dHBzOi8vZ2l0aHViLmNvbS9mbHV0dGVyL2ZsdXR0ZXIuZ2l0,RkxVVFRFUl9GUkFNRVdPUktfUkVWSVNJT049YWJhZjljNTIzNw==,RkxVVFRFUl9FTkdJTkVfUkVWSVNJT049ZGViMjg3NDgxZQ==,RkxVVFRFUl9EQVJUX1ZFUlNJT049My4xMy41 -Pdart-obfuscation=false -Ptrack-widget-creation=true -Ptree-shake-icons=false -Pflutter.androidSdkRoot=C:\Android -Pflutter.installedNdkVersions=28.2.13676358 -Pflutter.sdkManagerPath=C:\Android\cmdline-tools\latest\bin\sdkmanager.bat assembleDebug 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if "0" == "0" goto mainEnd 
+
+C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet\android>if "Windows_NT" == "Windows_NT" endlocal
+Running Gradle task 'assembleDebug'...                             18.4s
+√ Built build\app\outputs\flutter-apk\app-debug.apk
