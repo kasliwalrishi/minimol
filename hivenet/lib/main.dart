@@ -724,10 +724,17 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
                 actions: [
                   IconButton(
                     onPressed: busy ? null : refresh,
+                    tooltip: 'Refresh network',
                     icon: const Icon(Icons.refresh, color: Colors.white),
                   ),
                   IconButton(
+                    onPressed: busy ? null : upload,
+                    tooltip: 'Encrypt and upload image',
+                    icon: const Icon(Icons.upload_rounded, color: Colors.white),
+                  ),
+                  IconButton(
                     onPressed: addPeer,
+                    tooltip: 'Add LAN peer',
                     icon: const Icon(Icons.add_link, color: Colors.white),
                   ),
                 ],
@@ -850,6 +857,18 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
                     const SizedBox(height: 16),
 
                     // ── Metric cards row ──
+                    SizedBox(
+                      width: double.infinity,
+                      child: NeonButton(
+                        label: busy
+                            ? 'Preparing secure upload…'
+                            : 'Encrypt & Upload Image',
+                        icon: Icons.upload_rounded,
+                        onPressed: busy ? null : upload,
+                        colors: const [kCyan, kCyan],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     SizedBox(
                       height: 120,
                       child: Row(
@@ -1005,15 +1024,6 @@ class _DashboardState extends State<Dashboard> with TickerProviderStateMixin {
       ),
 
       // ── Upload FAB ──
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: NeonButton(
-          label: 'Upload Image',
-          icon: Icons.upload_outlined,
-          onPressed: busy ? null : upload,
-          colors: const [kPurple, kCyan],
-        ),
-      ),
     );
   }
 
