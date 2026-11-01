@@ -19,7 +19,6 @@ cloud bucket, central database, or shared folder.
 | Folder | Purpose |
 | --- | --- |
 | [`hivenet/`](hivenet) | Flutter application for Android, web, Windows, Linux, macOS, and iOS targets. |
-| [`Distributed-File-Storage-System/`](Distributed-File-Storage-System) | Original Go distributed-file-storage prototype and protocol notes. |
 
 ## Run the Flutter app
 
