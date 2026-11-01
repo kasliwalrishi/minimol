@@ -17,9 +17,26 @@ activity is no longer visible. It exposes a small HTTP protocol:
   with the verified hash.
 - `GET /v1/files/<sha256>` retrieves the local JPEG.
 
-The Flutter client compresses a chosen gallery image locally as JPEG (quality
-78), uses the resulting SHA-256 as its content ID, and requires acknowledgments
-from exactly two online peers before reporting success.
+The Flutter client decodes a chosen image, limits its longest edge to 1920 px,
+encodes JPEG quality 78, and uses the resulting SHA-256 as its content ID. The
+dashboard displays original/compressed sizes and the reduction percentage.
+
+## Replica router and distributed gallery
+
+The client probes each configured peer's `/v1/info` endpoint; `freeBytes` is
+the Android filesystem's actual `usableSpace`. The router ranks only online
+peers that have room for the compressed upload, using free capacity (45%),
+probe latency (25%), and persisted verified-transfer reliability (30%). It
+selects two distinct node IDs. If a top-ranked transfer fails, it tries the
+next eligible distinct peer, but reports success only after two checksum-verified
+`201` acknowledgements.
+
+The **Distributed gallery** merges `/v1/files` metadata from all responsive
+peers and shows the content hash, compression details, and replica locations.
+Opening an image retrieves by its hash, validates SHA-256 before rendering, and
+tries each currently available replica. This metadata is discovered from peers;
+there is no cloud index or central database. Each receiving Android device owns
+its JPEG and JSON metadata in `filesDir/hivenet/files`.
 
 ## Chrome mode and its browser boundary
 
@@ -49,6 +66,8 @@ From PowerShell:
 cd C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet
 flutter pub get
 flutter analyze
+flutter test
+flutter build web --release
 flutter build apk --debug
 ```
 
@@ -61,7 +80,7 @@ adb devices
 adb -s <device-id> install -r build\app\outputs\flutter-apk\app-debug.apk
 ```
 
-## Three-device check
+## Three-device check and resilience test
 
 1. Put all three devices on the same LAN. BlueStacks must use an adapter that
    can reach the phones; do not use its `10.0.2.2` host alias as a peer address.
@@ -73,7 +92,18 @@ adb -s <device-id> install -r build\app\outputs\flutter-apk\app-debug.apk
 4. On device A, tap **Upload image**. HiveNet will not claim success unless B
    and C have both saved and checksum-verified their copies.
 5. On B and C, pull to refresh. Each will list the image in **Local gallery**;
-   tap it to retrieve it from its own app-private storage.
+   tap it to retrieve it from its own app-private storage. On A, refresh and
+   check the **Distributed gallery**: the row must show two peer locations.
+6. Turn off Wi-Fi (or force-stop HiveNet) on B. Refresh A, then open the same
+   distributed-gallery image. It must load from C. Turn off C too and verify
+   that the app reports **No available verified replica**, rather than showing
+   an unverified image.
+
+`flutter test` covers deterministic resize/compression hashing and distinct,
+capacity-aware router selection. The three-device check covers real receiver
+storage, two-peer acknowledgements, hash retrieval, telemetry, and failover;
+it must be run on actual LAN devices because a unit test cannot emulate Android
+foreground services and independent filesystems.
 
 Files are app-private at `filesDir/hivenet/files` on each device. This is
 intentional: uninstalling an app removes only that node's own replicas.

@@ -119,7 +119,7 @@ class HiveNodeService : Service() {
         if (actual != expected.lowercase()) { tmp.delete(); return response(out, 422, "application/json", "{\"error\":\"checksum mismatch\"}".toByteArray()) }
         val target = File(dir, "$id.jpg"); if (!tmp.renameTo(target)) { tmp.copyTo(target, true); tmp.delete() }
         val name = URLDecoder.decode(r.headers["x-hivenet-name"] ?: "image.jpg", "UTF-8")
-        File(dir, "$id.json").writeText(JSONObject().put("id", id).put("name", name).put("mime", r.headers["x-hivenet-mime"] ?: "image/jpeg").put("sha256", actual).put("bytes", length).put("createdAt", System.currentTimeMillis()).toString())
+        File(dir, "$id.json").writeText(JSONObject().put("id", id).put("name", name).put("mime", r.headers["x-hivenet-mime"] ?: "image/jpeg").put("sha256", actual).put("bytes", length).put("originalBytes", r.headers["x-hivenet-original-bytes"]?.toLongOrNull() ?: length).put("createdAt", System.currentTimeMillis()).toString())
         response(out, 201, "application/json", JSONObject().put("stored", true).put("id", id).put("sha256", actual).toString().toByteArray())
     }
     private fun info(out: OutputStream) = response(out, 200, "application/json", JSONObject().put("nodeId", nodeId).put("port", port).put("freeBytes", root.usableSpace).toString().toByteArray())
@@ -132,7 +132,7 @@ class HiveNodeService : Service() {
     // Chrome's Local Network Access / Private Network Access preflight asks
     // for this explicit opt-in before a public page may contact a LAN peer.
     // Older browsers safely ignore the extra CORS response header.
-    private fun corsPreflight(out: OutputStream) { out.write("HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, PUT, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, X-HiveNet-Sha256, X-HiveNet-Name, X-HiveNet-Mime\r\nAccess-Control-Allow-Private-Network: true\r\nAccess-Control-Max-Age: 600\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray()); out.flush() }
+    private fun corsPreflight(out: OutputStream) { out.write("HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, PUT, OPTIONS\r\nAccess-Control-Allow-Headers: Content-Type, X-HiveNet-Sha256, X-HiveNet-Name, X-HiveNet-Mime, X-HiveNet-Original-Bytes\r\nAccess-Control-Allow-Private-Network: true\r\nAccess-Control-Max-Age: 600\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".toByteArray()); out.flush() }
     private fun response(out: OutputStream, status: Int, type: String, body: ByteArray) { val text = if (status in 200..299) "OK" else "Error"; out.write("HTTP/1.1 $status $text\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Private-Network: true\r\nConnection: close\r\n\r\n".toByteArray()); out.write(body); out.flush() }
     override fun onDestroy() { running = false; server?.close(); workers.shutdownNow(); super.onDestroy() }
     override fun onBind(intent: Intent?): IBinder? = null
