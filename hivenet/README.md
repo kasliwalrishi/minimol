@@ -124,12 +124,4 @@ foreground services and independent filesystems.
 Files are app-private at `filesDir/hivenet/files` on each device. This is
 intentional: uninstalling an app removes only that node's own replicas.
 
-## Relation to the original Go project
 
-The Go project has a useful architecture: individual nodes, content-addressed
-storage and streaming peer transfers. Its current TCP/GOB transport starts all
-three nodes inside one desktop process and lacks replication acknowledgments.
-Embedding that raw Go listener in Flutter Android would require a Go mobile
-binding and does not solve Android foreground lifecycle constraints. This MVP
-keeps the distributed-node and content-addressed design while supplying an
-Android-native foreground listener and explicit verified acknowledgments.
