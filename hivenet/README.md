@@ -79,7 +79,7 @@ sandbox limitation, not a cloud fallback.
 From PowerShell:
 
 ```powershell
-cd C:\Users\Jatin Kasliwal\Desktop\minimol\hivenet
+cd \hivenet
 flutter pub get
 flutter analyze
 flutter test
